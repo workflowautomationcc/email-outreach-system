@@ -1,0 +1,21 @@
+# Config with credentials – keep local only
+config/
+
+# Logs
+logs/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+env/
+
+# Env and secrets
+.env
+.env.local
+*.pem
+
+# OS
+.DS_Store
