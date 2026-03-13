@@ -1,16 +1,18 @@
 import csv
 import imaplib
 import email
+import json
+import requests
 from datetime import datetime, timedelta
 
 # CONFIG
 CSV_FILE = "data/active/leads.csv"
+TELEGRAM_CONFIG = "config/telegram.json"
 
 EMAIL_ACCOUNT = "robbie@gtxtransportlogistics.com"
 EMAIL_PASSWORD = "gxgr rpjl spnr nuhf"
 
 IMAP_SERVER = "imap.gmail.com"
-
 LOOKBACK_HOURS = 24
 
 
@@ -40,6 +42,32 @@ def save_csv(rows):
     print("CSV successfully updated.\n")
 
 
+def load_telegram_config():
+    with open(TELEGRAM_CONFIG, "r") as f:
+        config = json.load(f)
+
+    return config["bot_token"], config["chat_id"]
+
+
+def send_telegram_notification(message):
+
+    bot_token, chat_id = load_telegram_config()
+
+    url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+
+    payload = {
+        "chat_id": chat_id,
+        "text": message
+    }
+
+    try:
+        requests.post(url, json=payload)
+        print("Telegram notification sent.\n")
+
+    except Exception as e:
+        print("Failed to send Telegram notification:", e)
+
+
 def connect_email():
     print("Connecting to Gmail inbox...")
 
@@ -53,6 +81,7 @@ def connect_email():
 
 
 def extract_body(msg):
+
     body = ""
 
     if msg.is_multipart():
@@ -103,10 +132,11 @@ def main():
 
             if row["Email Address"].lower() == sender.lower():
 
+                print("Match found in CSV.")
+
                 if row["reply_received"] != "yes":
 
-                    print("Match found in CSV.")
-                    print("Updating reply fields...\n")
+                    print("Recording reply in CSV...\n")
 
                     row["reply_received"] = "yes"
                     row["reply_date"] = datetime.now().isoformat()
@@ -114,16 +144,28 @@ def main():
 
                     replies_detected += 1
 
+                if row.get("notification_sent", "").lower() != "yes":
+
+                    print("Sending Telegram notification...\n")
+
+                    message = (
+                        "New lead reply detected\n\n"
+                        f"Email: {sender}\n"
+                        f"Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+                        "Check Gmail to respond."
+                    )
+
+                    send_telegram_notification(message)
+
+                    row["notification_sent"] = "yes"
+
                 else:
 
-                    print("Reply already recorded earlier. Skipping.\n")
+                    print("Notification already sent earlier. Skipping.\n")
 
     if replies_detected > 0:
-
         save_csv(rows)
-
     else:
-
         print("No new replies found. CSV unchanged.\n")
 
     print(f"Reply detection complete. New replies recorded: {replies_detected}\n")
